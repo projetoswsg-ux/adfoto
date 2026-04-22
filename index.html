@@ -32,9 +32,19 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Data Base</label>
-                    <input type="date" id="baseDate" class="w-full p-2 border rounded mt-1">
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Data</label>
+                        <input type="date" id="baseDate" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Hora Inicial</label>
+                        <input type="time" id="startTime" value="08:00" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Hora Final</label>
+                        <input type="time" id="endTime" value="17:00" class="w-full p-2 border rounded mt-1">
+                    </div>
                 </div>
 
                 <div>
@@ -80,12 +90,26 @@
             return `${parts[0]}'${newSeconds}''`;
         }
 
+        function timeToSeconds(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 3600 + m * 60;
+        }
+
+        function secondsToTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec = s).padStart(2, '0')}`;
+        }
+
         async function processImages() {
-            const files = document.getElementById('imagesInput').files;
+            const files = Array.from(document.getElementById('imagesInput').files);
             const header = document.getElementById('headerText').value;
             const baseLat = document.getElementById('baseLat').value;
             const baseLon = document.getElementById('baseLon').value;
             const baseDate = document.getElementById('baseDate').value;
+            const startTimeStr = document.getElementById('startTime').value;
+            const endTimeStr = document.getElementById('endTime').value;
             const textColor = document.getElementById('textColor').value;
             const statusList = document.getElementById('statusList');
 
@@ -95,12 +119,31 @@
             }
 
             statusList.innerHTML = "";
-            const usedTimes = new Set();
+
+            // Lógica de tempo distribuído
+            const startSec = timeToSeconds(startTimeStr);
+            const endSec = timeToSeconds(endTimeStr);
+            let availableDuration = endSec - startSec;
+            
+            // Se o intervalo for muito curto para o número de fotos com a regra de 10 min, 
+            // priorizamos a distribuição uniforme
+            let intervalPerPhoto = Math.floor(availableDuration / files.length);
+            // Limitamos o intervalo máximo entre fotos a 10 minutos (600 segundos)
+            if (intervalPerPhoto > 600) intervalPerPhoto = 600; 
+
+            let currentSeconds = startSec;
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const reader = new FileReader();
+                
+                // Adiciona um incremento aleatório para não ser exato (entre 1 min e o intervalo calculado)
+                const jitter = getRandomInt(60, Math.max(60, intervalPerPhoto));
+                currentSeconds += jitter;
 
+                // Garante que não ultrapasse a hora final drasticamente, mas permite o processamento
+                const timeString = secondsToTime(currentSeconds % 86400);
+
+                const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = new Image();
                     img.onload = function() {
@@ -111,27 +154,15 @@
                         canvas.height = img.height;
                         ctx.drawImage(img, 0, 0);
 
-                        // Ajuste para fonte mais fina e simples
                         const fontSize = Math.round(canvas.width * 0.022); 
                         const padding = Math.round(canvas.width * 0.02);
                         const lineSpacing = fontSize * 1.15;
 
                         ctx.fillStyle = textColor;
-                        // Removido o 'bold' e adicionado 'Inter' e 'sans-serif' para traços mais finos
                         ctx.font = `400 ${fontSize}px 'Inter', Arial, sans-serif`;
                         ctx.textAlign = 'right';
                         ctx.textBaseline = 'bottom';
 
-                        let hour = getRandomInt(8, 17);
-                        let min, sec, timeKey;
-                        do {
-                            min = getRandomInt(0, 59);
-                            sec = getRandomInt(0, 59);
-                            timeKey = `${hour}:${min}:${sec}`;
-                        } while (usedTimes.has(timeKey));
-                        usedTimes.add(timeKey);
-
-                        const formattedTime = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
                         const dateParts = baseDate.split('-');
                         const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
 
@@ -141,7 +172,7 @@
                         const degree = getRandomInt(100, 180);
 
                         const lines = [
-                            `${formattedDate} ${formattedTime}`,
+                            `${formattedDate} ${timeString}`,
                             `${lat}, ${lon}, ${alt}ft, ${degree}°`,
                             header
                         ];
@@ -153,13 +184,13 @@
                         }
 
                         const link = document.createElement('a');
-                        link.download = `santana_${i + 1}_${formattedTime.replace(/:/g, '')}.jpg`;
+                        link.download = `santana_${i + 1}_${timeString.replace(/:/g, '')}.jpg`;
                         link.href = canvas.toDataURL('image/jpeg', 0.92);
                         link.click();
 
                         const statusItem = document.createElement('div');
                         statusItem.className = "p-2 bg-green-50 border-l-4 border-green-500 text-green-700";
-                        statusItem.innerText = `✓ Processada: ${file.name} (${formattedTime})`;
+                        statusItem.innerText = `✓ Processada: ${file.name} (${timeString})`;
                         statusList.appendChild(statusItem);
                     };
                     img.src = e.target.result;
