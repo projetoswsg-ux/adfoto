@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santana Regulação - Gerador de Marcas d'Água</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+        body { font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">Santana Regulação - Processamento em Massa</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Título Padrão</label>
+                    <input type="text" id="headerText" value="Santana regulação" class="w-full p-2 border rounded mt-1 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Latitude Base</label>
+                        <input type="text" id="baseLat" value="-22°25'38''" class="w-full p-2 border rounded mt-1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Longitude Base</label>
+                        <input type="text" id="baseLon" value="-42°57'55''" class="w-full p-2 border rounded mt-1">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Data Base</label>
+                    <input type="date" id="baseDate" class="w-full p-2 border rounded mt-1">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 text-yellow-600 font-bold">Cor do Texto (Padrão Santana)</label>
+                    <input type="color" id="textColor" value="#ffed00" class="h-10 w-full rounded cursor-pointer">
+                </div>
+
+                <div class="pt-4">
+                    <label class="block w-full flex flex-col items-center px-4 py-6 bg-blue-50 text-blue-700 rounded-lg shadow-sm tracking-wide uppercase border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
+                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                        <span class="mt-2 text-base leading-normal">Selecionar Imagens</span>
+                        <input type='file' id="imagesInput" class="hidden" multiple accept="image/*" />
+                    </label>
+                </div>
+
+                <button onclick="processImages()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-md">
+                    Processar e Baixar Tudo
+                </button>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-4 border border-dashed border-gray-300">
+                <h2 class="text-sm font-semibold text-gray-500 mb-2 uppercase italic">Status do Processamento</h2>
+                <div id="statusList" class="space-y-2 max-h-96 overflow-y-auto text-xs font-mono">
+                    Aguardando imagens...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Define a data de hoje como padrão no input
+        document.getElementById('baseDate').valueAsDate = new Date();
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // Gera uma variação pequena nos segundos para as coordenadas não serem idênticas
+        function jitterCoordinate(coordStr) {
+            const parts = coordStr.split("'");
+            if (parts.length < 2) return coordStr;
+            let seconds = parseInt(parts[1]);
+            let jitter = getRandomInt(-5, 5);
+            let newSeconds = Math.max(0, Math.min(59, seconds + jitter));
+            return `${parts[0]}'${newSeconds}''`;
+        }
+
+        async function processImages() {
+            const files = document.getElementById('imagesInput').files;
+            const header = document.getElementById('headerText').value;
+            const baseLat = document.getElementById('baseLat').value;
+            const baseLon = document.getElementById('baseLon').value;
+            const baseDate = document.getElementById('baseDate').value;
+            const textColor = document.getElementById('textColor').value;
+            const statusList = document.getElementById('statusList');
+
+            if (files.length === 0) {
+                alert("Por favor, selecione pelo menos uma imagem.");
+                return;
+            }
+
+            statusList.innerHTML = "";
+            const usedTimes = new Set();
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Resolução original
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+
+                        // Configurações de texto proporcionais ao tamanho da imagem
+                        const fontSize = Math.round(canvas.width * 0.025); // ~3% da largura
+                        const padding = Math.round(canvas.width * 0.02);
+                        const lineSpacing = fontSize * 1.2;
+
+                        ctx.fillStyle = textColor;
+                        ctx.font = `bold ${fontSize}px Arial, Helvetica, sans-serif`;
+                        ctx.textAlign = 'right';
+                        ctx.textBaseline = 'bottom';
+
+                        // Lógica de tempo único (Minutos e Segundos aleatórios)
+                        let hour = getRandomInt(8, 17);
+                        let min, sec, timeKey;
+                        do {
+                            min = getRandomInt(0, 59);
+                            sec = getRandomInt(0, 59);
+                            timeKey = `${hour}:${min}:${sec}`;
+                        } while (usedTimes.has(timeKey));
+                        usedTimes.add(timeKey);
+
+                        const formattedTime = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+                        const dateParts = baseDate.split('-');
+                        const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+
+                        // Coordenadas com pequena variação
+                        const lat = jitterCoordinate(baseLat);
+                        const lon = jitterCoordinate(baseLon);
+                        const alt = getRandomInt(280, 310);
+                        const degree = getRandomInt(100, 180);
+
+                        // Montagem das linhas (de baixo para cima)
+                        const lines = [
+                            `${formattedDate} ${formattedTime}`,
+                            `${lat}, ${lon}, ${alt}ft, ${degree}°`,
+                            header
+                        ];
+
+                        // Desenha as linhas começando da última (mais embaixo)
+                        let currentY = canvas.height - padding;
+                        for (let line of lines) {
+                            ctx.fillText(line, canvas.width - padding, currentY);
+                            currentY -= lineSpacing;
+                        }
+
+                        // Download automático
+                        const link = document.createElement('a');
+                        link.download = `santana_${i + 1}_${formattedTime.replace(/:/g, '')}.jpg`;
+                        link.href = canvas.toDataURL('image/jpeg', 0.9);
+                        link.click();
+
+                        const statusItem = document.createElement('div');
+                        statusItem.className = "p-2 bg-green-50 border-l-4 border-green-500 text-green-700";
+                        statusItem.innerText = `✓ Processada: ${file.name} (${formattedTime})`;
+                        statusList.appendChild(statusItem);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    </script>
+</body>
+</html>
