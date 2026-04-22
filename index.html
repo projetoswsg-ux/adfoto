@@ -6,8 +6,8 @@
     <title>Santana Regulação - Gerador de Marcas d'Água</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
-        body { font-family: 'Roboto', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Roboto:wght@300;400&display=swap');
+        body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-8">
@@ -65,14 +65,12 @@
     </div>
 
     <script>
-        // Define a data de hoje como padrão no input
         document.getElementById('baseDate').valueAsDate = new Date();
 
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        // Gera uma variação pequena nos segundos para as coordenadas não serem idênticas
         function jitterCoordinate(coordStr) {
             const parts = coordStr.split("'");
             if (parts.length < 2) return coordStr;
@@ -109,22 +107,21 @@
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
                         
-                        // Resolução original
                         canvas.width = img.width;
                         canvas.height = img.height;
                         ctx.drawImage(img, 0, 0);
 
-                        // Configurações de texto proporcionais ao tamanho da imagem
-                        const fontSize = Math.round(canvas.width * 0.025); // ~3% da largura
+                        // Ajuste para fonte mais fina e simples
+                        const fontSize = Math.round(canvas.width * 0.022); 
                         const padding = Math.round(canvas.width * 0.02);
-                        const lineSpacing = fontSize * 1.2;
+                        const lineSpacing = fontSize * 1.15;
 
                         ctx.fillStyle = textColor;
-                        ctx.font = `bold ${fontSize}px Arial, Helvetica, sans-serif`;
+                        // Removido o 'bold' e adicionado 'Inter' e 'sans-serif' para traços mais finos
+                        ctx.font = `400 ${fontSize}px 'Inter', Arial, sans-serif`;
                         ctx.textAlign = 'right';
                         ctx.textBaseline = 'bottom';
 
-                        // Lógica de tempo único (Minutos e Segundos aleatórios)
                         let hour = getRandomInt(8, 17);
                         let min, sec, timeKey;
                         do {
@@ -138,30 +135,26 @@
                         const dateParts = baseDate.split('-');
                         const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
 
-                        // Coordenadas com pequena variação
                         const lat = jitterCoordinate(baseLat);
                         const lon = jitterCoordinate(baseLon);
                         const alt = getRandomInt(280, 310);
                         const degree = getRandomInt(100, 180);
 
-                        // Montagem das linhas (de baixo para cima)
                         const lines = [
                             `${formattedDate} ${formattedTime}`,
                             `${lat}, ${lon}, ${alt}ft, ${degree}°`,
                             header
                         ];
 
-                        // Desenha as linhas começando da última (mais embaixo)
                         let currentY = canvas.height - padding;
                         for (let line of lines) {
                             ctx.fillText(line, canvas.width - padding, currentY);
                             currentY -= lineSpacing;
                         }
 
-                        // Download automático
                         const link = document.createElement('a');
                         link.download = `santana_${i + 1}_${formattedTime.replace(/:/g, '')}.jpg`;
-                        link.href = canvas.toDataURL('image/jpeg', 0.9);
+                        link.href = canvas.toDataURL('image/jpeg', 0.92);
                         link.click();
 
                         const statusItem = document.createElement('div');
