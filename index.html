@@ -95,15 +95,13 @@
             return h * 3600 + m * 60;
         }
 
-        function secondsToTime(totalSeconds) {
-            const h = Math.floor(totalSeconds / 3600);
-            const m = Math.floor((totalSeconds % 3600) / 60);
-            const s = totalSeconds % 60;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec = s).padStart(2, '0')}`;
+        function formatTime(h, m, s) {
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         }
 
         async function processImages() {
-            const files = Array.from(document.getElementById('imagesInput').files);
+            const filesInput = document.getElementById('imagesInput');
+            const files = Array.from(filesInput.files);
             const header = document.getElementById('headerText').value;
             const baseLat = document.getElementById('baseLat').value;
             const baseLon = document.getElementById('baseLon').value;
@@ -120,28 +118,43 @@
 
             statusList.innerHTML = "";
 
-            // Lógica de tempo distribuído
-            const startSec = timeToSeconds(startTimeStr);
-            const endSec = timeToSeconds(endTimeStr);
-            let availableDuration = endSec - startSec;
+            const startSecTotal = timeToSeconds(startTimeStr);
+            const endSecTotal = timeToSeconds(endTimeStr);
+            let availableRange = endSecTotal - startSecTotal;
             
-            // Se o intervalo for muito curto para o número de fotos com a regra de 10 min, 
-            // priorizamos a distribuição uniforme
-            let intervalPerPhoto = Math.floor(availableDuration / files.length);
-            // Limitamos o intervalo máximo entre fotos a 10 minutos (600 segundos)
-            if (intervalPerPhoto > 600) intervalPerPhoto = 600; 
+            // Calculamos um passo médio baseado no número de fotos, respeitando o limite de 10 min
+            let stepSeconds = Math.floor(availableRange / files.length);
+            if (stepSeconds > 600) stepSeconds = 600;
+            if (stepSeconds < 1) stepSeconds = 10;
 
-            let currentSeconds = startSec;
+            let currentBaseSeconds = startSecTotal;
+            const usedFullTimes = new Set();
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 
-                // Adiciona um incremento aleatório para não ser exato (entre 1 min e o intervalo calculado)
-                const jitter = getRandomInt(60, Math.max(60, intervalPerPhoto));
-                currentSeconds += jitter;
+                // Definimos o horário desta foto
+                let h, m, s, finalTimeString;
+                let attempts = 0;
 
-                // Garante que não ultrapasse a hora final drasticamente, mas permite o processamento
-                const timeString = secondsToTime(currentSeconds % 86400);
+                while(attempts < 100) {
+                    // Pegamos a base atual e adicionamos um pequeno jitter de minutos/segundos
+                    let tempTotalSec = currentBaseSeconds + getRandomInt(0, Math.max(1, stepSeconds));
+                    h = Math.floor((tempTotalSec / 3600) % 24);
+                    m = Math.floor((tempTotalSec % 3600) / 60);
+                    s = getRandomInt(0, 59); // Segundos totalmente aleatórios dentro do minuto
+
+                    finalTimeString = formatTime(h, m, s);
+                    
+                    if (!usedFullTimes.has(finalTimeString)) {
+                        usedFullTimes.add(finalTimeString);
+                        break;
+                    }
+                    attempts++;
+                }
+
+                // Incrementa a base para a próxima foto respeitando a progressão
+                currentBaseSeconds += stepSeconds;
 
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -154,6 +167,7 @@
                         canvas.height = img.height;
                         ctx.drawImage(img, 0, 0);
 
+                        // Fonte fina "Inter" sem negrito
                         const fontSize = Math.round(canvas.width * 0.022); 
                         const padding = Math.round(canvas.width * 0.02);
                         const lineSpacing = fontSize * 1.15;
@@ -172,7 +186,7 @@
                         const degree = getRandomInt(100, 180);
 
                         const lines = [
-                            `${formattedDate} ${timeString}`,
+                            `${formattedDate} ${finalTimeString}`,
                             `${lat}, ${lon}, ${alt}ft, ${degree}°`,
                             header
                         ];
@@ -184,13 +198,13 @@
                         }
 
                         const link = document.createElement('a');
-                        link.download = `santana_${i + 1}_${timeString.replace(/:/g, '')}.jpg`;
+                        link.download = `santana_${i + 1}.jpg`;
                         link.href = canvas.toDataURL('image/jpeg', 0.92);
                         link.click();
 
                         const statusItem = document.createElement('div');
                         statusItem.className = "p-2 bg-green-50 border-l-4 border-green-500 text-green-700";
-                        statusItem.innerText = `✓ Processada: ${file.name} (${timeString})`;
+                        statusItem.innerText = `✓ OK: ${file.name} às ${finalTimeString}`;
                         statusList.appendChild(statusItem);
                     };
                     img.src = e.target.result;
